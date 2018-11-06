@@ -57,7 +57,7 @@ public class SpringIntegrationDemoApplication {
             } catch (IOException ex) {
                 ReflectionUtils.rethrowRuntimeException(ex);
             }
-            return null;
+            return null;    
         };
 
         return IntegrationFlows.from(Files.inboundAdapter(in)
