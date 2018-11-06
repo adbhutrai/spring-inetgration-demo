@@ -14,12 +14,14 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
+import org.springframework.integration.dsl.channel.MessageChannels;
 import org.springframework.integration.dsl.file.Files;
 import org.springframework.integration.file.FileHeaders;
 import org.springframework.integration.ftp.session.DefaultFtpSessionFactory;
 import org.springframework.integration.support.MessageBuilder;
 import org.springframework.integration.transformer.GenericTransformer;
 import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageChannel;
 import org.springframework.util.ReflectionUtils;
 
 @SpringBootApplication
@@ -33,14 +35,15 @@ public class SpringIntegrationDemoApplication {
         ftpSessionFactory.setPort(port);
         ftpSessionFactory.setUsername(userName);
         ftpSessionFactory.setPassword(password);
+        
+        //This is to use FTP in passive mode for local windows.<!-- 2  passive mode -->
         ftpSessionFactory.setClientMode(2);
 
         return ftpSessionFactory;
     }
 
     @Bean
-    IntegrationFlow files(@Value("${input-directory:c:/Users/adbhu/Desktop/in}") File in,
-            DefaultFtpSessionFactory ftpSessionFactory, Environment environment) {
+    IntegrationFlow files(@Value("${input-directory:c:/Users/adbhu/Desktop/in}") File in, Environment environment) {
         GenericTransformer<File, Message<String>> fileStringGenericTransformer = (File source) -> {
 
             try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -62,6 +65,14 @@ public class SpringIntegrationDemoApplication {
                 .preventDuplicates(true)
                 .patternFilter("*.jpg"), poller -> poller.poller(pm -> pm.fixedRate(1000)))
                 .transform(File.class, fileStringGenericTransformer)
+                 .channel(this.asciiProcessor())
+                .get();
+
+    }
+
+    @Bean
+    IntegrationFlow ftp(DefaultFtpSessionFactory ftpSessionFactory) {
+        return IntegrationFlows.from(this.asciiProcessor())
                 .handleWithAdapter(adapters -> adapters.ftp(ftpSessionFactory)
                         .remoteDirectory("uploads")
                         .fileNameGenerator(message -> {
@@ -70,9 +81,13 @@ public class SpringIntegrationDemoApplication {
                             String fileName = String.class.cast(obj);
                             return fileName.split("\\.")[0] + ".txt";
 
-                        }))
-                .get();
+                        })).get();
+    }
 
+    @Bean
+    MessageChannel asciiProcessor() {
+        return MessageChannels.publishSubscribe()
+                .get();
     }
 
     public static void main(String[] args) {
